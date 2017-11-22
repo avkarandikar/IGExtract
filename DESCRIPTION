@@ -1,10 +1,10 @@
 Package: IGExtract
 Type: Package
-Title: Annotates text with institutional grammar components
+Title: Chunks text into institutional grammar components
 Version: 0.1.0
 Author: Brandon Taylor
 Maintainer: Brandon Taylor <brandon.taylor221@gmail.com>
-Description: IGExtract annotates text with institutional grammar components
+Description: IGExtract chunks text into institutional grammar components
     based on Elinor Ostrom's institutional grammar.
 License: MIT + file LICENSE
 Encoding: UTF-8
