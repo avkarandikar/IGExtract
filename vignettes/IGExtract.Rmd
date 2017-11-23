@@ -1,0 +1,125 @@
+---
+title: "IGExtract"
+author: "Brandon Taylor"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{IGExtract}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+IGExtract is an package which chunks text based on Elinor Ostrom's institutional
+grammar. Each institutional document contains institutional statements. 
+Institutional statements contain some of the following six components:
+
+* Attribute: Characteristics of who the institutional statements apply to.
+* oBject: Who receives the aim of the statement
+* Deontic: One of "may", "may not", "must", or "must not"
+* aIm: The action which the institutional statement is regulating
+* Conditions: The conditions underwhich the statement applies
+* Or else: Consequences if the statement is violated
+
+To input chunked institutional documents, use a dataframe with the following
+format:
+
+* `document`: A unique name or ID for every instutional document.
+* `text`: A fragement of text from the document
+* `component`: one of ABDICO, if applicable. `NA` otherwise.
+* `statement_ID`: A unique ID for each statement in a document, and for any
+fragments of text between institutional statements.
+
+All text from the original document should appear in order in the text field.
+
+```{r, message = FALSE}
+library(knitr)
+library(dplyr)
+
+chunked = data.frame(
+  document = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+  text = c("Power plants", "must not", "ever", "pollute", "the air",
+            "and also",
+            "sewage plants", "must not", "ever", "pollute", "the water"),
+  component = c("attribute", "deontic", NA, "aim", "object",
+                NA,
+                "attribute", "deontic", NA, "aim", "object"),
+  statement_ID = c(1, 1, 1, 1, 1,
+                   2,
+                   3, 3, 3, 3, 3)
+)
+kable(chunked)
+```
+
+This chunked data can be used as training data. Text which you wish to chunk
+should use the following format:
+
+* `document`:  A unique name or ID for every instutional document.
+* `text`: The text of the document
+
+```{r}
+unchunked = data.frame(
+  document = 2,
+  text = "Chemical plants must not ever pollute the soil"
+)
+
+kable(unchunked)
+```
+
+The first step is to build a feature set. This is a set of features that
+IGExtract will use to chunk documents. You need to build features for both
+chunked and unchunked data together. 
+
+For each word in the text, IGExtract will consider a window of words around that 
+word. For example, if `window` is 3, IGExtract will consider the 3 words before 
+the word and the 3 words after.
+
+IGExtract will only distinguish the most common words in your text. Very rare
+words don't offer much predictive power and add a lot of time to processing.
+To only distinguish between the two most common words, and view all other words
+as identical, set `number_of_words` to 3.
+
+```{r, warning = FALSE}
+library(IGExtract)
+
+my_features = features(chunked, unchunked, number_of_words = 3, window = 3)
+```
+
+Every word in the chunked text is tagged based on its position in the 
+institutional grammar.
+```{r}
+my_features$chunked$tag
+```
+
+We need to predict these tags for the unchunked text. We build a classifier with
+randomForest. Extra arguments to `chunker` will be passed to random forest.
+```{r}
+my_chunker = chunker(my_features$chunked)
+```
+
+We can use this chunker to chunk the unchunked text.
+
+```{r}
+kable(chunk(my_chunker, my_features$unchunked))
+```
+
+If we want to know how accurate the a chunker is, we can validate it by
+splitting up the chunked feature set into training and testing datasets.
+
+```{r}
+set.seed(1)
+my_training_and_testing = training_and_testing(my_features$chunked)
+training_chunker = chunker(my_training_and_testing$training)
+kable(validate(training_chunker, my_training_and_testing$testing))
+```
+
+The rows represent actual tags, and columns are predicted tags. The line of 1s
+across the diagonals represents words which were correctly tagged. You can see
+that one word that was outside of a statement was incorrectly classified as an
+aim.
