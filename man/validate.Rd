@@ -17,7 +17,7 @@ rows, and predicted tags will be columns.
 }
 \examples{
 chunked = data.frame(
-  source = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+  document = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
   text = c("Power plants", "must not", "ever", "pollute", "the air",
             "and also",
             "sewage plants", "must not", "ever", "pollute", "the water"),
@@ -29,12 +29,12 @@ chunked = data.frame(
                    3, 3, 3, 3, 3)
 )
 unchunked = data.frame(
-  source = 2,
+  document = 2,
   text = "Chemical plants must not ever pollute the soil"
 )
-features = features(chunked, unchunked, number_of_words = 3, window = 3)
-training_and_testing = training_and_testing(features$chunked, fraction = 0.5)
-chunker = chunker(training_and_testing$training)
-validate(chunker, training_and_testing$testing)
+my_features = features(chunked, unchunked, number_of_words = 3, window = 3)
+my_training_and_testing = training_and_testing(my_features$chunked, fraction = 0.5)
+my_chunker = chunker(my_training_and_testing$training)
+validate(my_chunker, my_training_and_testing$testing)
 
 }

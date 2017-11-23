@@ -7,13 +7,13 @@
 features(chunked, unchunked, number_of_words = 50, window = 10)
 }
 \arguments{
-\item{chunked}{A data frame of chunked text. Include four columns: source (a
-source text ID), component (one of ABDICO, if applicable), text (text
+\item{chunked}{A data frame of chunked text. Include four columns: document (a
+document text ID), component (one of ABDICO, if applicable), text (text
 of the fragment), and a statement_ID for each statement and segment
 of text between statements.}
 
 \item{unchunked}{A dataframe of unchunked text. Include two columns:
-source (a source text ID) and text (the contexts of the text).}
+document (a document text ID) and text (the contexts of the text).}
 
 \item{number_of_words}{The number of distinct words to use for chunking}
 
@@ -26,7 +26,7 @@ with features for both.
 }
 \examples{
 chunked = data.frame(
-  source = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+  document = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
   text = c("Power plants", "must not", "ever", "pollute", "the air",
             "and also",
             "sewage plants", "must not", "ever", "pollute", "the water"),
@@ -38,7 +38,7 @@ chunked = data.frame(
                    3, 3, 3, 3, 3)
 )
 unchunked = data.frame(
-  source = 2,
+  document = 2,
   text = "Chemical plants must not ever pollute the soil"
 )
 features(chunked, unchunked, number_of_words = 3, window = 3)

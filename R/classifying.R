@@ -1,7 +1,8 @@
 utils::globalVariables(c(
   ":=", "statement_ID", "component", "start", "end", "word", ".", "type",
   "features", "inside", "text_ID", "statement_tag", "part_of_speech", "tag",
-  "predict", "component_position", "statement_position", "word_original"))
+  "predict", "component_position", "statement_position", "word_original",
+  "document"))
 
 lags_and_leads = function(df, name, window = 0) {
   name = enquo(name)
@@ -27,19 +28,19 @@ lags_and_leads = function(df, name, window = 0) {
 #'
 #' @import dplyr
 #'
-#' @param chunked A data frame of chunked text. Include four columns: source (a
-#'     source text ID), component (one of ABDICO, if applicable), text (text
+#' @param chunked A data frame of chunked text. Include four columns: document (a
+#'     document text ID), component (one of ABDICO, if applicable), text (text
 #'     of the fragment), and a statement_ID for each statement and segment
 #'     of text between statements.
 #' @param unchunked A dataframe of unchunked text. Include two columns:
-#'     source (a source text ID) and text (the contexts of the text).
+#'     document (a document text ID) and text (the contexts of the text).
 #' @param number_of_words The number of distinct words to use for chunking
 #' @param window The number of words before and after each word to use for
 #'     chunking
 #'
 #' @examples
 #' chunked = data.frame(
-#'   source = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+#'   document = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
 #'   text = c("Power plants", "must not", "ever", "pollute", "the air",
 #'             "and also",
 #'             "sewage plants", "must not", "ever", "pollute", "the water"),
@@ -51,7 +52,7 @@ lags_and_leads = function(df, name, window = 0) {
 #'                    3, 3, 3, 3, 3)
 #' )
 #' unchunked = data.frame(
-#'   source = 2,
+#'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
 #' features(chunked, unchunked, number_of_words = 3, window = 3)
@@ -68,14 +69,14 @@ features = function(chunked, unchunked, number_of_words = 50, window = 10) {
 
   texts =
     texts.initial %>%
-    group_by(source, statement_ID) %>%
+    group_by(document, statement_ID) %>%
     summarize(inside =
                 component %>%
                 is.na %>%
                 all %>%
                 `!`) %>%
     ungroup %>%
-    right_join(texts.initial, by = c("source", "statement_ID"))
+    right_join(texts.initial, by = c("document", "statement_ID"))
 
   all_texts =
     texts$text %>%
@@ -104,7 +105,7 @@ features = function(chunked, unchunked, number_of_words = 50, window = 10) {
     rowwise %>%
     mutate(part_of_speech = features$POS) %>%
     ungroup %>%
-    group_by(chunked, source, statement_ID) %>%
+    group_by(chunked, document, statement_ID) %>%
     mutate(statement_tag =
              inside %>%
              ifelse(
@@ -124,15 +125,15 @@ features = function(chunked, unchunked, number_of_words = 50, window = 10) {
                  component)) %>%
              paste(statement_tag, .)) %>%
     ungroup %>%
-    select(chunked, source, word, word_original, part_of_speech, tag) %>%
-    group_by(chunked, source) %>%
+    select(chunked, document, word, word_original, part_of_speech, tag) %>%
+    group_by(chunked, document) %>%
     lags_and_leads(word, window) %>%
     lags_and_leads(part_of_speech, window) %>%
     ungroup
 
   words.dummies =
     words %>%
-    select(-tag, -source, -chunked, -word_original) %>%
+    select(-tag, -document, -chunked, -word_original) %>%
     as.data.frame %>%
     dummies::dummy.data.frame(dummy.classes = "ALL")
 
@@ -153,7 +154,7 @@ features = function(chunked, unchunked, number_of_words = 50, window = 10) {
     unchunked =
       together %>%
       mutate(word_original = words$word_original,
-             source = words$source) %>%
+             document = words$document) %>%
       filter(!chunked) %>%
       select(-chunked)
   )
@@ -169,7 +170,7 @@ features = function(chunked, unchunked, number_of_words = 50, window = 10) {
 #'
 #' @examples
 #' chunked = data.frame(
-#'   source = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+#'   document = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
 #'   text = c("Power plants", "must not", "ever", "pollute", "the air",
 #'             "and also",
 #'             "sewage plants", "must not", "ever", "pollute", "the water"),
@@ -181,14 +182,14 @@ features = function(chunked, unchunked, number_of_words = 50, window = 10) {
 #'                    3, 3, 3, 3, 3)
 #' )
 #' unchunked = data.frame(
-#'   source = 2,
+#'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
-#' features = features(chunked, unchunked, number_of_words = 3, window = 3)
-#' training_and_testing(features$chunked, fraction = 0.5)
+#' my_features = features(chunked, unchunked, number_of_words = 3, window = 3)
+#' training_and_testing(my_features$chunked, fraction = 0.5)
 #'
 #' @export
-training_and_testing = function(data, fraction = 0.6) {
+training_and_testing = function(data, fraction = 0.5) {
   training_rows =
     data %>%
     select(tag) %>%
@@ -213,7 +214,7 @@ training_and_testing = function(data, fraction = 0.6) {
 #'
 #' @examples
 #' chunked = data.frame(
-#'   source = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+#'   document = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
 #'   text = c("Power plants", "must not", "ever", "pollute", "the air",
 #'             "and also",
 #'             "sewage plants", "must not", "ever", "pollute", "the water"),
@@ -225,11 +226,11 @@ training_and_testing = function(data, fraction = 0.6) {
 #'                    3, 3, 3, 3, 3)
 #' )
 #' unchunked = data.frame(
-#'   source = 2,
+#'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
-#' features = features(chunked, unchunked, number_of_words = 3, window = 3)
-#' chunker(features$chunked, ntree = 400)
+#' my_features = features(chunked, unchunked, number_of_words = 3, window = 3)
+#' chunker(my_features$chunked, ntree = 400)
 #'
 #' @export
 chunker = function(features_chunked, ...)
@@ -245,7 +246,7 @@ chunker = function(features_chunked, ...)
 #'
 #' @examples
 #' chunked = data.frame(
-#'   source = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+#'   document = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
 #'   text = c("Power plants", "must not", "ever", "pollute", "the air",
 #'             "and also",
 #'             "sewage plants", "must not", "ever", "pollute", "the water"),
@@ -257,13 +258,13 @@ chunker = function(features_chunked, ...)
 #'                    3, 3, 3, 3, 3)
 #' )
 #' unchunked = data.frame(
-#'   source = 2,
+#'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
-#' features = features(chunked, unchunked, number_of_words = 3, window = 3)
-#' training_and_testing = training_and_testing(features$chunked, fraction = 0.5)
-#' chunker = chunker(training_and_testing$training)
-#' validate(chunker, training_and_testing$testing)
+#' my_features = features(chunked, unchunked, number_of_words = 3, window = 3)
+#' my_training_and_testing = training_and_testing(my_features$chunked, fraction = 0.5)
+#' my_chunker = chunker(my_training_and_testing$training)
+#' validate(my_chunker, my_training_and_testing$testing)
 #'
 #' @export
 validate = function(chunker, testing) {
@@ -286,7 +287,7 @@ beginnings_to_tags = function(vector)
 #'
 #' @examples
 #' chunked = data.frame(
-#'   source = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+#'   document = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
 #'   text = c("Power plants", "must not", "ever", "pollute", "the air",
 #'             "and also",
 #'             "sewage plants", "must not", "ever", "pollute", "the water"),
@@ -298,12 +299,12 @@ beginnings_to_tags = function(vector)
 #'                    3, 3, 3, 3, 3)
 #' )
 #' unchunked = data.frame(
-#'   source = 2,
+#'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
-#' features = features(chunked, unchunked, number_of_words = 3, window = 3)
-#' chunker = chunker(features$chunked)
-#' chunk(chunker, features$unchunked)
+#' my_features = features(chunked, unchunked, number_of_words = 3, window = 3)
+#' my_chunker = chunker(my_features$chunked)
+#' chunk(my_chunker, my_features$unchunked)
 #'
 #' @export
 chunk = function(chunker, features_unchunked)
@@ -311,14 +312,14 @@ chunk = function(chunker, features_unchunked)
   mutate(tag =
            stats::predict(chunker,
                           newdata = features_unchunked)) %>%
-  select(source, word_original, tag) %>%
+  select(document, word_original, tag) %>%
   tidyr::separate(tag, c("statement_position", "statement",
                          "component_position", "component")) %>%
-  group_by(source) %>%
+  group_by(document) %>%
   mutate(statement_ID = beginnings_to_tags(statement_position)) %>%
-  group_by(source, statement_ID) %>%
+  group_by(document, statement_ID) %>%
   mutate(text_ID = beginnings_to_tags(component_position)) %>%
-  group_by(source, statement_ID, text_ID) %>%
+  group_by(document, statement_ID, text_ID) %>%
   summarize(
     component = first(component),
     text = paste(word_original, collapse = " ")) %>%

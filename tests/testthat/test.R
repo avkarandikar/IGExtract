@@ -1,5 +1,5 @@
 chunked = data.frame(
-  source = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+  document = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
   text = c("Power plants", "must not", "ever", "pollute", "the air",
            "and also",
            "sewage plants", "must not", "ever", "pollute", "the water"),
@@ -11,7 +11,7 @@ chunked = data.frame(
                    3, 3, 3, 3, 3)
 )
 unchunked = data.frame(
-  source = 2,
+  document = 2,
   text = "Chemical plants must not ever pollute the soil"
 )
 
@@ -39,11 +39,11 @@ test_that("everything", {
                                                                                         "inside statement inside deontic", "inside statement inside object",
                                                                                         "inside statement outside component", "outside statement outside component"
                                           )), .Names = c("", ".")), class = "table"))
-  expect_equal(chunked, structure(list(source = c(2, 2, 2, 2, 2), statement_ID = c(1L,
+  expect_equal(chunked, structure(list(document = c(2, 2, 2, 2, 2), statement_ID = c(1L,
                                                                                    1L, 1L, 1L, 1L), component = c("attribute", "deontic", "component",
                                                                                                                   "aim", "object"), text = c("Chemical plants", "must not", "ever",
                                                                                                                                              "pollute", "the soil")), class = c("tbl_df", "tbl", "data.frame"
-                                                                                                                                             ), row.names = c(NA, -5L), .Names = c("source", "statement_ID",
+                                                                                                                                             ), row.names = c(NA, -5L), .Names = c("document", "statement_ID",
                                                                                                                                                                                    "component", "text")))
 })
 

@@ -4,7 +4,7 @@
 \alias{training_and_testing}
 \title{Split data into training and testing data}
 \usage{
-training_and_testing(data, fraction = 0.6)
+training_and_testing(data, fraction = 0.5)
 }
 \arguments{
 \item{data}{A data frame}
@@ -16,7 +16,7 @@ Will return a list with a training and a testing data
 }
 \examples{
 chunked = data.frame(
-  source = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+  document = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
   text = c("Power plants", "must not", "ever", "pollute", "the air",
             "and also",
             "sewage plants", "must not", "ever", "pollute", "the water"),
@@ -28,10 +28,10 @@ chunked = data.frame(
                    3, 3, 3, 3, 3)
 )
 unchunked = data.frame(
-  source = 2,
+  document = 2,
   text = "Chemical plants must not ever pollute the soil"
 )
-features = features(chunked, unchunked, number_of_words = 3, window = 3)
-training_and_testing(features$chunked, fraction = 0.5)
+my_features = features(chunked, unchunked, number_of_words = 3, window = 3)
+training_and_testing(my_features$chunked, fraction = 0.5)
 
 }
