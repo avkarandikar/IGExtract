@@ -16,7 +16,9 @@ unchunked = data.frame(
 )
 
 set.seed(1)
-features = features(chunked, unchunked, number_of_words = 3, window = 3)
+my_parts_of_speech = parts_of_speech(chunked, unchunked)
+features = features(chunked, unchunked, my_parts_of_speech,
+                    number_of_words = 3, window = 3)
 training_and_testing = training_and_testing(features$chunked, fraction = 0.5)
 chunker = chunker(training_and_testing$training)
 validated = validate(chunker, training_and_testing$testing)

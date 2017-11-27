@@ -2,7 +2,7 @@ utils::globalVariables(c(
   ":=", "statement_ID", "component", "start", "end", "word", ".", "type",
   "features", "inside", "text_ID", "statement_tag", "part_of_speech", "tag",
   "predict", "component_position", "statement_position", "word_original",
-  "document"))
+  "document", "text"))
 
 lags_and_leads = function(df, name, window = 0) {
   name = enquo(name)
@@ -21,6 +21,64 @@ lags_and_leads = function(df, name, window = 0) {
   df
 }
 
+#' Create parts of speech
+#'
+#' Chunked and unchunked text must be included together.
+#'
+#' @import dplyr
+#'
+#' @param chunked A data frame with a text variable.
+#' @param unchunked A data frame with a text variable.
+#'
+#' @examples
+#' chunked = data.frame(
+#'   document = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+#'   text = c("Power plants", "must not", "ever", "pollute", "the air",
+#'             "and also",
+#'             "sewage plants", "must not", "ever", "pollute", "the water"),
+#'   component = c("attribute", "deontic", NA, "aim", "object",
+#'                 NA,
+#'                 "attribute", "deontic", NA, "aim", "object"),
+#'   statement_ID = c(1, 1, 1, 1, 1,
+#'                    2,
+#'                    3, 3, 3, 3, 3)
+#' )
+#' unchunked = data.frame(
+#'   document = 2,
+#'   text = "Chemical plants must not ever pollute the soil"
+#' )
+#' parts_of_speech(chunked, unchunked)
+#'
+#' @export
+parts_of_speech = function(chunked, unchunked) {
+  all_texts =
+    bind_rows(
+      chunked %>% select(text),
+      unchunked %>% select(text)) %>%
+    .$text %>%
+    paste(collapse = " \u241E ")
+
+  all_texts %>%
+    NLP::annotate(list(
+      openNLP::Maxent_Sent_Token_Annotator(),
+      openNLP::Maxent_Word_Token_Annotator(),
+      openNLP::Maxent_POS_Tag_Annotator())) %>%
+    as.data.frame %>%
+    filter(type != "sentence") %>%
+    mutate(word_original =
+             all_texts %>%
+             stringi::stri_sub(start, end),
+           text_ID =
+             (word_original == "\u241E") %>%
+             cumsum %>%
+             {. + 1}) %>%
+    filter(word_original != "\u241E") %>%
+    rowwise %>%
+    mutate(part_of_speech = features$POS) %>%
+    ungroup %>%
+    select(text_ID, word_original, part_of_speech)
+}
+
 #' Create features for chunking
 #'
 #' Chunked and unchunked text must be included together. Will return a list
@@ -32,8 +90,9 @@ lags_and_leads = function(df, name, window = 0) {
 #'     document text ID), component (one of ABDICO, if applicable), text (text
 #'     of the fragment), and a statement_ID for each statement and segment
 #'     of text between statements.
-#' @param unchunked A dataframe of unchunked text. Include two columns:
+#' @param unchunked A data frame of unchunked text. Include two columns:
 #'     document (a document text ID) and text (the contexts of the text).
+#' @param my_parts_of_speech Created with the parts_of_speech function
 #' @param number_of_words The number of distinct words to use for chunking
 #' @param window The number of words before and after each word to use for
 #'     chunking
@@ -55,20 +114,23 @@ lags_and_leads = function(df, name, window = 0) {
 #'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
-#' features(chunked, unchunked, number_of_words = 3, window = 3)
+#' my_parts_of_speech = parts_of_speech(chunked, unchunked)
+#' features(chunked, unchunked, my_parts_of_speech,
+#'          number_of_words = 3, window = 3)
 #'
 #' @export
-features = function(chunked, unchunked, number_of_words = 50, window = 10) {
+features = function(chunked, unchunked, my_parts_of_speech,
+                    number_of_words = 50, window = 10) {
 
-  texts.initial =
+  texts =
     bind_rows(
       chunked %>% mutate(chunked = TRUE),
       unchunked %>% mutate(chunked = FALSE)
     ) %>%
     mutate(text_ID = 1:n())
 
-  texts =
-    texts.initial %>%
+  words =
+    texts %>%
     group_by(document, statement_ID) %>%
     summarize(inside =
                 component %>%
@@ -76,35 +138,12 @@ features = function(chunked, unchunked, number_of_words = 50, window = 10) {
                 all %>%
                 `!`) %>%
     ungroup %>%
-    right_join(texts.initial, by = c("document", "statement_ID"))
-
-  all_texts =
-    texts$text %>%
-    paste(collapse = " \u241E ")
-
-  words =
-    all_texts %>%
-    NLP::annotate(list(
-      openNLP::Maxent_Sent_Token_Annotator(),
-      openNLP::Maxent_Word_Token_Annotator(),
-      openNLP::Maxent_POS_Tag_Annotator())) %>%
-    as.data.frame %>%
-    mutate(word_original =
-             all_texts %>%
-             stringi::stri_sub(start, end),
-           word =
+    right_join(texts, by = c("document", "statement_ID")) %>%
+    right_join(my_parts_of_speech, by = "text_ID") %>%
+    mutate(word =
              word_original %>%
              forcats::fct_lump(n = number_of_words, other_level = "<OTHER>") %>%
-             as.character,
-           text_ID =
-             (word == "\u241E") %>%
-             cumsum %>%
-             {. + 1}) %>%
-    filter(type != "sentence", word != "\u241E") %>%
-    left_join(texts, by = "text_ID") %>%
-    rowwise %>%
-    mutate(part_of_speech = features$POS) %>%
-    ungroup %>%
+             as.character) %>%
     group_by(chunked, document, statement_ID) %>%
     mutate(statement_tag =
              inside %>%
@@ -185,7 +224,9 @@ features = function(chunked, unchunked, number_of_words = 50, window = 10) {
 #'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
-#' my_features = features(chunked, unchunked, number_of_words = 3, window = 3)
+#' my_parts_of_speech = parts_of_speech(chunked, unchunked)
+#' my_features = features(chunked, unchunked, my_parts_of_speech,
+#'                        number_of_words = 3, window = 3)
 #' training_and_testing(my_features$chunked, fraction = 0.5)
 #'
 #' @export
@@ -229,7 +270,9 @@ training_and_testing = function(data, fraction = 0.5) {
 #'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
-#' my_features = features(chunked, unchunked, number_of_words = 3, window = 3)
+#' my_parts_of_speech = parts_of_speech(chunked, unchunked)
+#' my_features = features(chunked, unchunked, my_parts_of_speech,
+#'                        number_of_words = 3, window = 3)
 #' chunker(my_features$chunked, ntree = 400)
 #'
 #' @export
@@ -261,7 +304,9 @@ chunker = function(features_chunked, ...)
 #'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
-#' my_features = features(chunked, unchunked, number_of_words = 3, window = 3)
+#' my_parts_of_speech = parts_of_speech(chunked, unchunked)
+#' my_features = features(chunked, unchunked, my_parts_of_speech,
+#'                        number_of_words = 3, window = 3)
 #' my_training_and_testing = training_and_testing(my_features$chunked, fraction = 0.5)
 #' my_chunker = chunker(my_training_and_testing$training)
 #' validate(my_chunker, my_training_and_testing$testing)
@@ -302,7 +347,9 @@ beginnings_to_tags = function(vector)
 #'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
-#' my_features = features(chunked, unchunked, number_of_words = 3, window = 3)
+#' my_parts_of_speech = parts_of_speech(chunked, unchunked)
+#' my_features = features(chunked, unchunked, my_parts_of_speech,
+#'                        number_of_words = 3, window = 3)
 #' my_chunker = chunker(my_features$chunked)
 #' chunk(my_chunker, my_features$unchunked)
 #'

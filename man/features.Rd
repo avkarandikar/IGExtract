@@ -4,7 +4,8 @@
 \alias{features}
 \title{Create features for chunking}
 \usage{
-features(chunked, unchunked, number_of_words = 50, window = 10)
+features(chunked, unchunked, my_parts_of_speech, number_of_words = 50,
+  window = 10)
 }
 \arguments{
 \item{chunked}{A data frame of chunked text. Include four columns: document (a
@@ -12,8 +13,10 @@ document text ID), component (one of ABDICO, if applicable), text (text
 of the fragment), and a statement_ID for each statement and segment
 of text between statements.}
 
-\item{unchunked}{A dataframe of unchunked text. Include two columns:
+\item{unchunked}{A data frame of unchunked text. Include two columns:
 document (a document text ID) and text (the contexts of the text).}
+
+\item{my_parts_of_speech}{Created with the parts_of_speech function}
 
 \item{number_of_words}{The number of distinct words to use for chunking}
 
@@ -41,6 +44,8 @@ unchunked = data.frame(
   document = 2,
   text = "Chemical plants must not ever pollute the soil"
 )
-features(chunked, unchunked, number_of_words = 3, window = 3)
+my_parts_of_speech = parts_of_speech(chunked, unchunked)
+features(chunked, unchunked, my_parts_of_speech,
+         number_of_words = 3, window = 3)
 
 }

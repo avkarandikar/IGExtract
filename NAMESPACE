@@ -3,6 +3,7 @@
 export(chunk)
 export(chunker)
 export(features)
+export(parts_of_speech)
 export(training_and_testing)
 export(validate)
 import(dplyr)
