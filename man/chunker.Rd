@@ -33,8 +33,7 @@ unchunked = data.frame(
   text = "Chemical plants must not ever pollute the soil"
 )
 my_parts_of_speech = parts_of_speech(chunked, unchunked)
-my_features = features(chunked, unchunked, my_parts_of_speech,
-                       number_of_words = 3, window = 3)
-chunker(my_features$chunked, ntree = 400)
+my_features = features(chunked, unchunked, my_parts_of_speech)
+chunker(my_features$chunked)
 
 }

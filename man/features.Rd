@@ -4,8 +4,8 @@
 \alias{features}
 \title{Create features for chunking}
 \usage{
-features(chunked, unchunked, my_parts_of_speech, number_of_words = 50,
-  window = 10)
+features(chunked, unchunked, my_parts_of_speech, number_of_words = 3,
+  window = 3)
 }
 \arguments{
 \item{chunked}{A data frame of chunked text. Include four columns: document (a
@@ -45,7 +45,6 @@ unchunked = data.frame(
   text = "Chemical plants must not ever pollute the soil"
 )
 my_parts_of_speech = parts_of_speech(chunked, unchunked)
-features(chunked, unchunked, my_parts_of_speech,
-         number_of_words = 3, window = 3)
+features(chunked, unchunked, my_parts_of_speech)
 
 }

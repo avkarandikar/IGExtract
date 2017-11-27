@@ -115,12 +115,11 @@ parts_of_speech = function(chunked, unchunked) {
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
 #' my_parts_of_speech = parts_of_speech(chunked, unchunked)
-#' features(chunked, unchunked, my_parts_of_speech,
-#'          number_of_words = 3, window = 3)
+#' features(chunked, unchunked, my_parts_of_speech)
 #'
 #' @export
 features = function(chunked, unchunked, my_parts_of_speech,
-                    number_of_words = 50, window = 10) {
+                    number_of_words = 3, window = 3) {
 
   texts =
     bind_rows(
@@ -199,6 +198,50 @@ features = function(chunked, unchunked, my_parts_of_speech,
   )
 }
 
+#' Balance a feature set
+#'
+#' Will discard tags below the minimum number of observations, and sample down
+#' the rest of the tags to have the same number of observations.
+#'
+#' @param data A tagged feature set
+#' @param minimum_number A minimum number of observations per tag
+#'
+#' @examples
+#' chunked = data.frame(
+#'   document = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+#'   text = c("Power plants", "must not", "ever", "pollute", "the air",
+#'             "and also",
+#'             "sewage plants", "must not", "ever", "pollute", "the water"),
+#'   component = c("attribute", "deontic", NA, "aim", "object",
+#'                 NA,
+#'                 "attribute", "deontic", NA, "aim", "object"),
+#'   statement_ID = c(1, 1, 1, 1, 1,
+#'                    2,
+#'                    3, 3, 3, 3, 3)
+#' )
+#' unchunked = data.frame(
+#'   document = 2,
+#'   text = "Chemical plants must not ever pollute the soil"
+#' )
+#' my_parts_of_speech = parts_of_speech(chunked, unchunked)
+#' my_features = features(chunked, unchunked, my_parts_of_speech)
+#' balance(my_features$chunked, minimum_number = 0)
+#'
+#' @export
+balance = function(data, minimum_number = 100) {
+  counts =
+    data %>%
+    group_by(tag) %>%
+    count %>%
+    filter(n >= minimum_number)
+
+  counts %>%
+  left_join(data) %>%
+  group_by(tag) %>%
+  sample_n(min(counts$n)) %>%
+  ungroup %>%
+  mutate(tag = factor(tag))
+}
 
 #' Split data into training and testing data
 #'
@@ -225,9 +268,8 @@ features = function(chunked, unchunked, my_parts_of_speech,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
 #' my_parts_of_speech = parts_of_speech(chunked, unchunked)
-#' my_features = features(chunked, unchunked, my_parts_of_speech,
-#'                        number_of_words = 3, window = 3)
-#' training_and_testing(my_features$chunked, fraction = 0.5)
+#' my_features = features(chunked, unchunked, my_parts_of_speech)
+#' training_and_testing(my_features$chunked)
 #'
 #' @export
 training_and_testing = function(data, fraction = 0.5) {
@@ -271,9 +313,8 @@ training_and_testing = function(data, fraction = 0.5) {
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
 #' my_parts_of_speech = parts_of_speech(chunked, unchunked)
-#' my_features = features(chunked, unchunked, my_parts_of_speech,
-#'                        number_of_words = 3, window = 3)
-#' chunker(my_features$chunked, ntree = 400)
+#' my_features = features(chunked, unchunked, my_parts_of_speech)
+#' chunker(my_features$chunked)
 #'
 #' @export
 chunker = function(features_chunked, ...)
@@ -348,8 +389,7 @@ beginnings_to_tags = function(vector)
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
 #' my_parts_of_speech = parts_of_speech(chunked, unchunked)
-#' my_features = features(chunked, unchunked, my_parts_of_speech,
-#'                        number_of_words = 3, window = 3)
+#' my_features = features(chunked, unchunked, my_parts_of_speech)
 #' my_chunker = chunker(my_features$chunked)
 #' chunk(my_chunker, my_features$unchunked)
 #'
