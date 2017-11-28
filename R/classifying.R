@@ -236,10 +236,11 @@ balance = function(data, minimum_number = 100) {
     filter(n >= minimum_number)
 
   counts %>%
-  left_join(data) %>%
+  left_join(data, by = "tag") %>%
   group_by(tag) %>%
   sample_n(min(counts$n)) %>%
   ungroup %>%
+  select(-n) %>%
   mutate(tag = factor(tag))
 }
 
