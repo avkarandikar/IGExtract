@@ -104,16 +104,19 @@ my_features = features(chunked, unchunked, my_parts_of_speech)
 Every word in the chunked text is tagged based on its position in the 
 institutional grammar.
 ```{r}
-my_features$chunked$tag
+my_features$chunked %>% 
+  select(tag) %>%
+  head %>% 
+  kable
 ```
 
 You might notice for real data that some tags are for more common than others.
 For example, in many institutional documents, words outside any statement are
 by far the most common. To balance the data such that there is an equal number
-of data points for each tag, use balance.
+of data points for each tag, use `balance`.
 
 We need to predict these tags for the unchunked text. We build a classifier with
-randomForest. Extra arguments to `chunker` will be passed to random forest.
+`randomForest`. Extra arguments to `chunker` will be passed to `randomForest`.
 ```{r}
 my_chunker = chunker(my_features$chunked)
 ```
@@ -121,7 +124,7 @@ my_chunker = chunker(my_features$chunked)
 We can use this chunker to chunk the unchunked text.
 
 ```{r}
-kable(chunk(my_chunker, my_features$unchunked))
+kable(my_chunker %>% chunk(my_features$unchunked))
 ```
 
 If we want to know how accurate the a chunker is, we can validate it by

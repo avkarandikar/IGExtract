@@ -79,6 +79,46 @@ parts_of_speech = function(chunked, unchunked) {
     select(text_ID, word_original, part_of_speech)
 }
 
+tags_and_parts_of_speech = function(chunked, unchunked, my_parts_of_speech) {
+  texts =
+    bind_rows(
+      chunked %>% mutate(chunked = TRUE),
+      unchunked %>% mutate(chunked = FALSE)
+    ) %>%
+    mutate(text_ID = 1:n())
+
+  texts %>%
+    group_by(document, statement_ID) %>%
+    summarize(inside =
+                component %>%
+                is.na %>%
+                all %>%
+                `!`) %>%
+    ungroup %>%
+    right_join(texts, by = c("document", "statement_ID")) %>%
+    right_join(my_parts_of_speech, by = "text_ID") %>%
+    group_by(chunked, document, statement_ID) %>%
+    mutate(statement_tag =
+             inside %>%
+             ifelse(
+               ((1:n() == 1)) %>%
+                 ifelse("beginning statement", "inside statement"),
+               "outside statement"
+             )) %>%
+    group_by(text_ID) %>%
+    mutate(tag =
+             is.na(component) %>%
+             ifelse(
+               "outside component",
+               paste(
+                 (1:n() == 1) %>%
+                   ifelse("beginning", "inside"),
+                 component)) %>%
+             paste(statement_tag, .)) %>%
+    ungroup %>%
+    select(chunked, document, word_original, part_of_speech, tag)
+}
+
 #' Create features for chunking
 #'
 #' Chunked and unchunked text must be included together. Will return a list
@@ -121,49 +161,12 @@ parts_of_speech = function(chunked, unchunked) {
 features = function(chunked, unchunked, my_parts_of_speech,
                     number_of_words = 3, window = 3) {
 
-  texts =
-    bind_rows(
-      chunked %>% mutate(chunked = TRUE),
-      unchunked %>% mutate(chunked = FALSE)
-    ) %>%
-    mutate(text_ID = 1:n())
-
   words =
-    texts %>%
-    group_by(document, statement_ID) %>%
-    summarize(inside =
-                component %>%
-                is.na %>%
-                all %>%
-                `!`) %>%
-    ungroup %>%
-    right_join(texts, by = c("document", "statement_ID")) %>%
-    right_join(my_parts_of_speech, by = "text_ID") %>%
+    tags_and_parts_of_speech(chunked, unchunked, my_parts_of_speech) %>%
     mutate(word =
              word_original %>%
              forcats::fct_lump(n = number_of_words, other_level = "<OTHER>") %>%
              as.character) %>%
-    group_by(chunked, document, statement_ID) %>%
-    mutate(statement_tag =
-             inside %>%
-             ifelse(
-               ((1:n() == 1)) %>%
-                 ifelse("beginning statement", "inside statement"),
-               "outside statement"
-             )
-    ) %>%
-    group_by(text_ID) %>%
-    mutate(tag =
-             is.na(component) %>%
-             ifelse(
-               "outside component",
-               paste(
-                 (1:n() == 1) %>%
-                   ifelse("beginning", "inside"),
-                 component)) %>%
-             paste(statement_tag, .)) %>%
-    ungroup %>%
-    select(chunked, document, word, word_original, part_of_speech, tag) %>%
     group_by(chunked, document) %>%
     lags_and_leads(word, window) %>%
     lags_and_leads(part_of_speech, window) %>%
