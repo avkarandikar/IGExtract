@@ -2,18 +2,18 @@
 % Please edit documentation in R/classifying.R
 \name{balance}
 \alias{balance}
-\title{Balance a feature set}
+\title{Balance data}
 \usage{
 balance(data, minimum_number = 100)
 }
 \arguments{
-\item{data}{A tagged feature set}
+\item{data}{A data frame with a tag column}
 
 \item{minimum_number}{A minimum number of observations per tag}
 }
 \description{
-Will discard tags below the minimum number of observations, and sample down
-the rest of the tags to have the same number of observations.
+Will discard tags with below the minimum number of observations, and sample
+down the rest of the tags to have the same number of observations.
 }
 \examples{
 chunked = data.frame(
@@ -32,8 +32,8 @@ unchunked = data.frame(
   document = 2,
   text = "Chemical plants must not ever pollute the soil"
 )
-my_parts_of_speech = parts_of_speech(chunked, unchunked)
-my_features = features(chunked, unchunked, my_parts_of_speech)
+tags = tag(chunked, unchunked)
+my_features = features(tags)
 balance(my_features$chunked, minimum_number = 0)
 
 }

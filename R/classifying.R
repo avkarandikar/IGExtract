@@ -1,8 +1,8 @@
 utils::globalVariables(c(
   ":=", "statement_ID", "component", "start", "end", "word", ".", "type",
   "features", "inside", "text_ID", "statement_tag", "part_of_speech", "tag",
-  "predict", "component_position", "statement_position", "word_original",
-  "document", "text"))
+  "predict", "component_position", "statement_position",
+  "document", "text", "component_tag", "chunked", "word_original"))
 
 lags_and_leads = function(df, name, window = 0) {
   name = enquo(name)
@@ -21,9 +21,43 @@ lags_and_leads = function(df, name, window = 0) {
   df
 }
 
-#' Create parts of speech
+parts_of_speech = function(chunked, unchunked) {
+
+    # POS tagging is much faster if all text is put in at once
+    # Put together marking separation with unicode character for record seperator
+    # then take it apart again and reconstitute texts by counting record seperators
+  all_texts =
+    bind_rows(
+      chunked %>% select(text),
+      unchunked %>% select(text)) %>%
+    .$text %>%
+    paste(collapse = " \u241E ")
+
+  all_texts %>%
+    NLP::annotate(list(
+      openNLP::Maxent_Sent_Token_Annotator(),
+      openNLP::Maxent_Word_Token_Annotator(),
+      openNLP::Maxent_POS_Tag_Annotator())) %>%
+    as.data.frame %>%
+    filter(type != "sentence") %>%
+    mutate(word =
+             all_texts %>%
+             stringi::stri_sub(start, end),
+           text_ID =
+             (word == "\u241E") %>%
+             cumsum %>%
+             {. + 1}) %>%
+    filter(word != "\u241E") %>%
+    rowwise %>%
+    mutate(part_of_speech = features$POS) %>%
+    ungroup %>%
+    select(text_ID, word, part_of_speech)
+}
+
+#' Create tags
 #'
-#' Chunked and unchunked text must be included together.
+#' Tag words based on their part of speech and position in the institutional
+#' grammar
 #'
 #' @import dplyr
 #'
@@ -47,39 +81,10 @@ lags_and_leads = function(df, name, window = 0) {
 #'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
-#' parts_of_speech(chunked, unchunked)
+#' tag(chunked, unchunked)
 #'
 #' @export
-parts_of_speech = function(chunked, unchunked) {
-  all_texts =
-    bind_rows(
-      chunked %>% select(text),
-      unchunked %>% select(text)) %>%
-    .$text %>%
-    paste(collapse = " \u241E ")
-
-  all_texts %>%
-    NLP::annotate(list(
-      openNLP::Maxent_Sent_Token_Annotator(),
-      openNLP::Maxent_Word_Token_Annotator(),
-      openNLP::Maxent_POS_Tag_Annotator())) %>%
-    as.data.frame %>%
-    filter(type != "sentence") %>%
-    mutate(word_original =
-             all_texts %>%
-             stringi::stri_sub(start, end),
-           text_ID =
-             (word_original == "\u241E") %>%
-             cumsum %>%
-             {. + 1}) %>%
-    filter(word_original != "\u241E") %>%
-    rowwise %>%
-    mutate(part_of_speech = features$POS) %>%
-    ungroup %>%
-    select(text_ID, word_original, part_of_speech)
-}
-
-tags_and_parts_of_speech = function(chunked, unchunked, my_parts_of_speech) {
+tag = function(chunked, unchunked) {
   texts =
     bind_rows(
       chunked %>% mutate(chunked = TRUE),
@@ -87,8 +92,10 @@ tags_and_parts_of_speech = function(chunked, unchunked, my_parts_of_speech) {
     ) %>%
     mutate(text_ID = 1:n())
 
-  texts %>%
+  tags =
+    texts %>%
     group_by(document, statement_ID) %>%
+    # inside of a statement if it has any components
     summarize(inside =
                 component %>%
                 is.na %>%
@@ -96,46 +103,43 @@ tags_and_parts_of_speech = function(chunked, unchunked, my_parts_of_speech) {
                 `!`) %>%
     ungroup %>%
     right_join(texts, by = c("document", "statement_ID")) %>%
-    right_join(my_parts_of_speech, by = "text_ID") %>%
-    group_by(chunked, document, statement_ID) %>%
-    mutate(statement_tag =
-             inside %>%
-             ifelse(
-               ((1:n() == 1)) %>%
-                 ifelse("beginning statement", "inside statement"),
-               "outside statement"
-             )) %>%
+    right_join(parts_of_speech(chunked, unchunked), by = "text_ID") %>%
     group_by(text_ID) %>%
-    mutate(tag =
+    mutate(component_tag =
              is.na(component) %>%
              ifelse(
                "outside component",
                paste(
                  (1:n() == 1) %>%
-                   ifelse("beginning", "inside"),
-                 component)) %>%
-             paste(statement_tag, .)) %>%
+                   ifelse("beginning",
+                          "inside"),
+                 component))) %>%
     ungroup %>%
-    select(chunked, document, word_original, part_of_speech, tag)
+    group_by(chunked, document, statement_ID) %>%
+    mutate(statement_tag =
+             inside %>%
+             ifelse(
+               ((1:n() == 1)) %>%
+                 ifelse("beginning statement",
+                        "inside statement"),
+               "outside statement")) %>%
+    ungroup %>%
+    mutate(tag = paste(statement_tag, component_tag) %>% as.factor) %>%
+    select(chunked, document, word, part_of_speech, tag)
 }
 
-#' Create features for chunking
+#' Create features
 #'
-#' Chunked and unchunked text must be included together. Will return a list
-#' with features for both.
+#' Create features for chunking from tagged data
 #'
 #' @import dplyr
 #'
-#' @param chunked A data frame of chunked text. Include four columns: document (a
-#'     document text ID), component (one of ABDICO, if applicable), text (text
-#'     of the fragment), and a statement_ID for each statement and segment
-#'     of text between statements.
-#' @param unchunked A data frame of unchunked text. Include two columns:
-#'     document (a document text ID) and text (the contexts of the text).
-#' @param my_parts_of_speech Created with the parts_of_speech function
+#' @param tags Tagged data, the result of tag.
 #' @param number_of_words The number of distinct words to use for chunking
-#' @param window The number of words before and after each word to use for
+#' @param word_window The number of words before and after each word to use for
 #'     chunking
+#' @param part_of_speech_window The number of parts of speech before and after
+#'     each word to use for chunking
 #'
 #' @examples
 #' chunked = data.frame(
@@ -154,59 +158,48 @@ tags_and_parts_of_speech = function(chunked, unchunked, my_parts_of_speech) {
 #'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
-#' my_parts_of_speech = parts_of_speech(chunked, unchunked)
-#' features(chunked, unchunked, my_parts_of_speech)
+#' tags = tag(chunked, unchunked)
+#' features(tags)
 #'
 #' @export
-features = function(chunked, unchunked, my_parts_of_speech,
-                    number_of_words = 3, window = 3) {
+features = function(tags,
+                    number_of_words = 10,
+                    part_of_speech_window = 20,
+                    word_window = 5) {
 
   words =
-    tags_and_parts_of_speech(chunked, unchunked, my_parts_of_speech) %>%
+    tags %>%
+    rename(word_original = word) %>%
     mutate(word =
              word_original %>%
              forcats::fct_lump(n = number_of_words, other_level = "<OTHER>") %>%
              as.character) %>%
     group_by(chunked, document) %>%
-    lags_and_leads(word, window) %>%
-    lags_and_leads(part_of_speech, window) %>%
-    ungroup
-
-  words.dummies =
-    words %>%
-    select(-tag, -document, -chunked, -word_original) %>%
-    as.data.frame %>%
-    dummies::dummy.data.frame(dummy.classes = "ALL")
-
-  new_names = make.names(names(words.dummies))
-
-  together =
-    words.dummies %>%
-    stats::setNames(new_names) %>%
-    .[!duplicated(new_names)] %>%
-    mutate(chunked = words$chunked)
+    lags_and_leads(word, word_window) %>%
+    lags_and_leads(part_of_speech, part_of_speech_window) %>%
+    ungroup %>%
+    mutate_all(as.factor) %>%
+    { .[, sapply(., nlevels) > 1 ] } %>%
+    mutate(chunked = as.logical(chunked))
 
   list(
     chunked =
-      together %>%
-      mutate(tag = as.factor(words$tag)) %>%
+      words %>%
       filter(chunked) %>%
       select(-chunked),
     unchunked =
-      together %>%
-      mutate(word_original = words$word_original,
-             document = words$document) %>%
+      words %>%
       filter(!chunked) %>%
       select(-chunked)
   )
 }
 
-#' Balance a feature set
+#' Balance data
 #'
-#' Will discard tags below the minimum number of observations, and sample down
-#' the rest of the tags to have the same number of observations.
+#' Will discard tags with below the minimum number of observations, and sample
+#' down the rest of the tags to have the same number of observations.
 #'
-#' @param data A tagged feature set
+#' @param data A data frame with a tag column
 #' @param minimum_number A minimum number of observations per tag
 #'
 #' @examples
@@ -226,8 +219,8 @@ features = function(chunked, unchunked, my_parts_of_speech,
 #'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
-#' my_parts_of_speech = parts_of_speech(chunked, unchunked)
-#' my_features = features(chunked, unchunked, my_parts_of_speech)
+#' tags = tag(chunked, unchunked)
+#' my_features = features(tags)
 #' balance(my_features$chunked, minimum_number = 0)
 #'
 #' @export
@@ -249,7 +242,7 @@ balance = function(data, minimum_number = 100) {
 
 #' Split data into training and testing data
 #'
-#' Will return a list with a training and a testing data
+#' Will return a list with a training and a testing data set
 #'
 #' @param data A data frame
 #' @param fraction The percentage of the data to put into the training data
@@ -271,17 +264,17 @@ balance = function(data, minimum_number = 100) {
 #'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
-#' my_parts_of_speech = parts_of_speech(chunked, unchunked)
-#' my_features = features(chunked, unchunked, my_parts_of_speech)
+#' tags = tag(chunked, unchunked)
+#' my_features = features(tags)
 #' training_and_testing(my_features$chunked)
 #'
 #' @export
 training_and_testing = function(data, fraction = 0.5) {
   training_rows =
     data %>%
-    select(tag) %>%
+    select(tag, document) %>%
     mutate(row = 1:n()) %>%
-    group_by(tag) %>%
+    group_by(tag, document) %>%
     sample_frac(fraction) %>%
     .$row
 
@@ -297,6 +290,7 @@ training_and_testing = function(data, fraction = 0.5) {
 #'     institutional grammar
 #'
 #' @param features_chunked Features of chunked text
+#' @param classifier Defaults to randomForest
 #' @param ... Extra parameters to pass to randomForest
 #'
 #' @examples
@@ -316,13 +310,17 @@ training_and_testing = function(data, fraction = 0.5) {
 #'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
-#' my_parts_of_speech = parts_of_speech(chunked, unchunked)
-#' my_features = features(chunked, unchunked, my_parts_of_speech)
+#' tags = tag(chunked, unchunked)
+#' my_features = features(tags)
 #' chunker(my_features$chunked)
 #'
 #' @export
-chunker = function(features_chunked, ...)
-  randomForest::randomForest(tag ~ ., data = features_chunked, ...)
+chunker = function(features_chunked, classifier = randomForest::randomForest, ...)
+  classifier(tag ~ .,
+             data =
+               features_chunked %>%
+               select(-document, -word_original),
+             ...)
 
 #' Validate a chunker
 #'
@@ -349,10 +347,9 @@ chunker = function(features_chunked, ...)
 #'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
-#' my_parts_of_speech = parts_of_speech(chunked, unchunked)
-#' my_features = features(chunked, unchunked, my_parts_of_speech,
-#'                        number_of_words = 3, window = 3)
-#' my_training_and_testing = training_and_testing(my_features$chunked, fraction = 0.5)
+#' tags = tag(chunked, unchunked)
+#' my_features = features(tags)
+#' my_training_and_testing = training_and_testing(my_features$chunked)
 #' my_chunker = chunker(my_training_and_testing$training)
 #' validate(my_chunker, my_training_and_testing$testing)
 #'
@@ -362,7 +359,7 @@ validate = function(chunker, testing) {
     table(testing$tag, .)
 }
 
-beginnings_to_tags = function(vector)
+position_IDs = function(vector)
   cumsum(
     vector == "beginning" |
       (vector == "outside" &
@@ -392,27 +389,26 @@ beginnings_to_tags = function(vector)
 #'   document = 2,
 #'   text = "Chemical plants must not ever pollute the soil"
 #' )
-#' my_parts_of_speech = parts_of_speech(chunked, unchunked)
-#' my_features = features(chunked, unchunked, my_parts_of_speech)
+#' tags = tag(chunked, unchunked)
+#' my_features = features(tags, word_window = 3, number_of_words = 3, part_of_speech_window = 3)
 #' my_chunker = chunker(my_features$chunked)
-#' chunk(my_chunker, my_features$unchunked)
 #'
 #' @export
 chunk = function(chunker, features_unchunked)
   features_unchunked %>%
   mutate(tag =
            stats::predict(chunker,
-                          newdata = features_unchunked)) %>%
-  select(document, word_original, tag) %>%
+                          newdata = features_unchunked %>% select(-document))) %>%
+  select(document, word = word_original, tag) %>%
   tidyr::separate(tag, c("statement_position", "statement",
                          "component_position", "component")) %>%
   group_by(document) %>%
-  mutate(statement_ID = beginnings_to_tags(statement_position)) %>%
+  mutate(statement_ID = position_IDs(statement_position)) %>%
   group_by(document, statement_ID) %>%
-  mutate(text_ID = beginnings_to_tags(component_position)) %>%
+  mutate(text_ID = position_IDs(component_position)) %>%
   group_by(document, statement_ID, text_ID) %>%
   summarize(
     component = first(component),
-    text = paste(word_original, collapse = " ")) %>%
+    text = paste(word, collapse = " ")) %>%
   ungroup %>%
   select(-text_ID)

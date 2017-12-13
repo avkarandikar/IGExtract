@@ -32,10 +32,9 @@ unchunked = data.frame(
   document = 2,
   text = "Chemical plants must not ever pollute the soil"
 )
-my_parts_of_speech = parts_of_speech(chunked, unchunked)
-my_features = features(chunked, unchunked, my_parts_of_speech,
-                       number_of_words = 3, window = 3)
-my_training_and_testing = training_and_testing(my_features$chunked, fraction = 0.5)
+tags = tag(chunked, unchunked)
+my_features = features(tags)
+my_training_and_testing = training_and_testing(my_features$chunked)
 my_chunker = chunker(my_training_and_testing$training)
 validate(my_chunker, my_training_and_testing$testing)
 

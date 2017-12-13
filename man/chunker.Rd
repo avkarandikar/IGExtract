@@ -4,10 +4,12 @@
 \alias{chunker}
 \title{Build an chunker}
 \usage{
-chunker(features_chunked, ...)
+chunker(features_chunked, classifier = randomForest::randomForest, ...)
 }
 \arguments{
 \item{features_chunked}{Features of chunked text}
+
+\item{classifier}{Defaults to randomForest}
 
 \item{...}{Extra parameters to pass to randomForest}
 }
@@ -32,8 +34,8 @@ unchunked = data.frame(
   document = 2,
   text = "Chemical plants must not ever pollute the soil"
 )
-my_parts_of_speech = parts_of_speech(chunked, unchunked)
-my_features = features(chunked, unchunked, my_parts_of_speech)
+tags = tag(chunked, unchunked)
+my_features = features(tags)
 chunker(my_features$chunked)
 
 }

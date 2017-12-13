@@ -12,7 +12,7 @@ training_and_testing(data, fraction = 0.5)
 \item{fraction}{The percentage of the data to put into the training data}
 }
 \description{
-Will return a list with a training and a testing data
+Will return a list with a training and a testing data set
 }
 \examples{
 chunked = data.frame(
@@ -31,8 +31,8 @@ unchunked = data.frame(
   document = 2,
   text = "Chemical plants must not ever pollute the soil"
 )
-my_parts_of_speech = parts_of_speech(chunked, unchunked)
-my_features = features(chunked, unchunked, my_parts_of_speech)
+tags = tag(chunked, unchunked)
+my_features = features(tags)
 training_and_testing(my_features$chunked)
 
 }

@@ -31,9 +31,8 @@ unchunked = data.frame(
   document = 2,
   text = "Chemical plants must not ever pollute the soil"
 )
-my_parts_of_speech = parts_of_speech(chunked, unchunked)
-my_features = features(chunked, unchunked, my_parts_of_speech)
+tags = tag(chunked, unchunked)
+my_features = features(tags, word_window = 3, number_of_words = 3, part_of_speech_window = 3)
 my_chunker = chunker(my_features$chunked)
-chunk(my_chunker, my_features$unchunked)
 
 }

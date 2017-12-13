@@ -52,9 +52,8 @@ chunked = data.frame(
                 "attribute", "deontic", NA, "aim", "object"),
   statement_ID = c(1, 1, 1, 1, 1,
                    2,
-                   3, 3, 3, 3, 3)
-)
-kable(chunked)
+                   3, 3, 3, 3, 3))
+chunked %>% kable
 ```
 
 This chunked data can be used as training data. Text which you wish to chunk
@@ -69,45 +68,37 @@ unchunked = data.frame(
   text = "Chemical plants must not ever pollute the soil"
 )
 
-kable(unchunked)
+unchunked %>% kable
 ```
 
-The first step is to predict the part of speech tag for every word in both 
-the chunked and unchunked datasets.
+The first step is to tag parts of speech and institutional grammar components.
+You need to include chunked and unchunked data together.
 
 ```{r, warning = FALSE}
 library(IGExtract)
 
-my_parts_of_speech = parts_of_speech(chunked, unchunked)
+tags = tag(chunked, unchunked)
 
-kable(head(my_parts_of_speech))
+tags %>% head %>% kable
 ```
 
-The next step is to build a feature set. This is a set of features that
-IGExtract will use to chunk documents. You need to build features for both
-chunked and unchunked data together. Parts of speech will also need to be
-included.
+The next step is to build a feature set. It will return an chunked feature set and
+an unchunked feature set.
 
-For each word in the text, IGExtract will consider a window of words around that 
-word. For example, if `window` is 3, IGExtract will consider the 3 words before 
-the word and the 3 words after. `window` defaults to 3.
+`number_of_words` is the number of words to consider as distinct. Since most 
+words in a text a rarely used, they do not contribute to a accuracy.
 
-IGExtract will only distinguish the most common words in your text. Very rare
-words don't offer much predictive power and add a lot of time to processing.
-To only distinguish between the two most common words, and view all other words
-as identical, set `number_of_words` to 3. `number_of_words` defaults to 3.
+`word_window` is the number of words before and after the word to use to help
+predict the tag.
+
+`part_of_speech_window` is the number of parts of speech of words before and 
+after the word to help predict the part of speech.
 
 ```{r, warning = FALSE}
-my_features = features(chunked, unchunked, my_parts_of_speech)
-```
-
-Every word in the chunked text is tagged based on its position in the 
-institutional grammar.
-```{r}
-my_features$chunked %>% 
-  select(tag) %>%
-  head %>% 
-  kable
+my_features = features(tags,
+                       number_of_words = 3,
+                       word_window = 3,
+                       part_of_speech_window = 3)
 ```
 
 You might notice for real data that some tags are for more common than others.
@@ -115,8 +106,9 @@ For example, in many institutional documents, words outside any statement are
 by far the most common. To balance the data such that there is an equal number
 of data points for each tag, use `balance`.
 
-We need to predict these tags for the unchunked text. We build a classifier with
-`randomForest`. Extra arguments to `chunker` will be passed to `randomForest`.
+We need to predict these tags for the unchunked text. Build a classified with
+chunker.
+
 ```{r}
 my_chunker = chunker(my_features$chunked)
 ```
@@ -135,10 +127,9 @@ splitting up the chunked feature set into training and testing datasets.
 set.seed(1)
 my_training_and_testing = training_and_testing(my_features$chunked)
 training_chunker = chunker(my_training_and_testing$training)
-kable(validate(training_chunker, my_training_and_testing$testing))
+validate(training_chunker, my_training_and_testing$testing) %>% kable
 ```
 
 The rows represent actual tags, and columns are predicted tags. The line of 1s
-across the diagonals represents words which were correctly tagged. You can see
-that one word that was outside of a statement was incorrectly classified as an
-aim.
+across the diagonals represents words which were correctly tagged. All words 
+were tagged correctly.

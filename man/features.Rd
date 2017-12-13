@@ -2,30 +2,24 @@
 % Please edit documentation in R/classifying.R
 \name{features}
 \alias{features}
-\title{Create features for chunking}
+\title{Create features}
 \usage{
-features(chunked, unchunked, my_parts_of_speech, number_of_words = 3,
-  window = 3)
+features(tags, number_of_words = 10, part_of_speech_window = 20,
+  word_window = 5)
 }
 \arguments{
-\item{chunked}{A data frame of chunked text. Include four columns: document (a
-document text ID), component (one of ABDICO, if applicable), text (text
-of the fragment), and a statement_ID for each statement and segment
-of text between statements.}
-
-\item{unchunked}{A data frame of unchunked text. Include two columns:
-document (a document text ID) and text (the contexts of the text).}
-
-\item{my_parts_of_speech}{Created with the parts_of_speech function}
+\item{tags}{Tagged data, the result of tag.}
 
 \item{number_of_words}{The number of distinct words to use for chunking}
 
-\item{window}{The number of words before and after each word to use for
+\item{part_of_speech_window}{The number of parts of speech before and after
+each word to use for chunking}
+
+\item{word_window}{The number of words before and after each word to use for
 chunking}
 }
 \description{
-Chunked and unchunked text must be included together. Will return a list
-with features for both.
+Create features for chunking from tagged data
 }
 \examples{
 chunked = data.frame(
@@ -44,7 +38,7 @@ unchunked = data.frame(
   document = 2,
   text = "Chemical plants must not ever pollute the soil"
 )
-my_parts_of_speech = parts_of_speech(chunked, unchunked)
-features(chunked, unchunked, my_parts_of_speech)
+tags = tag(chunked, unchunked)
+features(tags)
 
 }
